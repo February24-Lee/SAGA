@@ -1,8 +1,9 @@
 import logging
-from logging import StreamHandler, Handler, getLevelName
 import os
 import sys
 import time
+from logging import Handler, StreamHandler, getLevelName
+
 
 # this class is a copy of logging.FileHandler except we end self.close()
 # at the end of each emit. While closing file and reopening file after each
@@ -12,21 +13,22 @@ class FileHandler(StreamHandler):
     """
     A handler class which writes formatted logging records to disk files.
     """
-    def __init__(self, filename, mode='a', encoding=None, delay=False):
+
+    def __init__(self, filename, mode="a", encoding=None, delay=False):
         """
         Open the specified file and use it as the stream for logging.
         """
         # Issue #27493: add support for Path objects to be passed in
         filename = os.fspath(filename)
-        #keep the absolute path, otherwise derived classes which use this
-        #may come a cropper when the current directory changes
+        # keep the absolute path, otherwise derived classes which use this
+        # may come a cropper when the current directory changes
         self.baseFilename = os.path.abspath(filename)
         self.mode = mode
         self.encoding = encoding
         self.delay = delay
         if delay:
-            #We don't open the stream, but we still need to call the
-            #Handler constructor to set level, formatter, lock etc.
+            # We don't open the stream, but we still need to call the
+            # Handler constructor to set level, formatter, lock etc.
             Handler.__init__(self)
             self.stream = None
         else:
@@ -74,11 +76,13 @@ class FileHandler(StreamHandler):
 
     def __repr__(self):
         level = getLevelName(self.level)
-        return '<%s %s (%s)>' % (self.__class__.__name__, self.baseFilename, level)
+        return "<%s %s (%s)>" % (self.__class__.__name__, self.baseFilename, level)
 
 
 def setup_logger(name, save_dir, distributed_rank):
-    filename= time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime()) + '-' + name +  '.log'
+    filename = (
+        time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime()) + "-" + name + ".log"
+    )
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
     # don't log results for the non-master process

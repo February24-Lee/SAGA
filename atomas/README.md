@@ -1,116 +1,85 @@
-<div align="center">
+# Atomas + SAGA
 
-# 【ICLR 2025】🧪 Atomas: Hierarchical Adaptive Alignment on Molecule-Text for Unified Molecule Understanding and Generation <br>
-[Project Page](https://yikunpku.github.io/_Atomas/) | [Paper](https://openreview.net/forum?id=mun3bGqdDM&referrer=%5BAuthor%20Console%5D(%2Fgroup%3Fid%3DICLR.cc%2F2025%2FConference%2FAuthors%23your-submissions)) | [Report Bug](https://github.com/yikunpku/Atomas/issues) | [Citation](#Citation)
+SAGA extensions to **Atomas** (*Hierarchical Adaptive Alignment on Molecule-Text*, ICLR 2025). The original model jointly learns SMILES and text representations with hierarchical adaptive alignment; on top of it we add **SAGA** — a Centered Kernel Alignment (CKA) regularizer that aligns the learned embeddings with classical molecular-fingerprint (Tanimoto) similarity.
 
-</div>
-<!-- TABLE OF CONTENTS -->
-<details open>
-  <summary><strong>Table of Contents </strong> </summary>
-  <ol>
-    <li>
-      <a href="#Updates">Updates</a>
-    </li>
-    <li>
-      <a href="#About The Project">About The Project</a>
-    </li>
-    <li>
-      <a href="#Getting Started">Getting Started</a>
-      <ul>
-        <li><a href="#Requirements">Requirements</a></li>
-        <li><a href="#Pre-trained Model">Pre-trained Model</a></li>
-        <li><a href="#Training">Training</a></li>
-        <li><a href="#Evaluation">Evaluation</a></li>
-      </ul>
-    </li>
-    <li><a href="#Citation">Citation</a></li>
-    <li><a href="#Contact">Contact</a></li>
-  </ol>
-</details>
+> Original code: <https://github.com/yikunpku/Atomas> · Project page: <https://yikunpku.github.io/_Atomas/>
 
+## What SAGA adds
 
-<div id="Updates">
+- **SAGA / CKA regularization** — an auxiliary loss aligning the SMILES representations with Morgan / MACCS / RDKit fingerprint similarity (`include_mfp`, `ckalosswt`, `fp_type`, `mfp_queue_size`).
+- **PubChemSTM-distill pretraining** — a `pubchemstm_distill` dataset mode over our 34,365-pair filtered corpus (`data/PubchemSTM_distill/`).
+- **ChEBI-20 captioning finetuning** — warm-start from a PubChemSTM-distill checkpoint (`_yamls/Finetune_ChEBI20.yaml`).
+- **Migration to PyTorch Lightning 2.x**, pre-tokenization caching, and retrieval metrics (MRR).
 
-## 📣 Updates
+The loss itself is in `utils/losses/` (CKA, Tanimoto Gram matrix) and
+`models/atomas.py::_compute_mfp_cka_loss`; fingerprints are in `utils/fingerprint/`.
 
-* **[2025/2/24]**:  We've released the source code and pretrained checkpoint for Atomas. This includes everything needed to start using and extending Atomas in your own projects. Enjoy easy setup and quick integration!
+## Setup
 
-<!-- ABOUT THE PROJECT -->
-<div id="About The Project">
-
-## :blue_book: About The Project
-
-<img src="figs/Atomas_framework.png" width="800px">
-
-We propose **Atomas**, a hierarchical molecular representation learning framework that jointly learns representations from SMILES strings and text. We design a Hierarchical Adaptive Alignment model to automatically learn the fine-grained fragment correspondence between two modalities and align these representations at three semantic levels. 
-Atomas's end-to-end training framework supports understanding and generating molecule, enabling a wider range of downstream tasks. Extensive experiments on retrieval and generation tasks demonstrate superior performance, highlighting the efficacy of our method. Scaling experiments reveal Atomas’s robustness and scalability. Additionally, the visualization and qualitative analysis of Atomas confirms the chemical significance of our approach.
-
-<div id="Getting Started">
-
-## :rocket: Getting Started
-
-To get a local copy up and running follow these simple example steps.
-
-<div id="Requirements">
-
-### Requirements
-
-To install requirements:
-
-```setup
-pip install -r requirements.txt
+```bash
+uv sync   # Python ≥ 3.12, managed via uv (see pyproject.toml)
 ```
 
-<div id="Pre-trained Model">
+## Data
 
-### Pre-trained Model
+- **PubChemSTM-distill** (34,365 pairs) is included at `data/PubchemSTM_distill/train.txt`.
+  How it was built and the terms it is provided under are in [`../DATA.md`](../DATA.md).
+- **ChEBI-20** (validation, and captioning finetuning) is loaded from the Hugging Face
+  dataset [`liupf/ChEBI-20-MM`](https://huggingface.co/datasets/liupf/ChEBI-20-MM).
 
-You can download pretrained models here:
+## Training
 
-- [Atomas](https://drive.google.com/file/d/1i4v7b4ZdOnOHJ5hWBFENxmdwaPp8HYBW/view?usp=drive_link) pre-trained on PubchemSTM-distill dataset and finetune on CHEBI-20 dataset for molecule generation task. 
+Pretrain on PubChemSTM-distill with the SAGA loss (config: `_yamls/Pretrain_Atomas.yaml`):
 
-<div id="Training">
-
-### Training
-
-To train the model(s) in the paper, run this command:
-
-```train
-python main.py --project Atomas --data_dir <your data path> --dataset <choose pubchem or chebi-20 dataset> --model_size <choose base or large> --task <choose genmol or gentext>
+```bash
+# DDP over every visible GPU; the paper used 4 GPUs x --batch_size 4 (global 16)
+python main.py --project Atomas --dataset pubchemstm_distill \
+    --data_dir data --model_size base --task gentext \
+    --batch_size 4 --max_epochs 100 --seed 42 --start_valid_epoch 1000 \
+    --include_mfp --fp_type morgan --ckalosswt 100 --mfp_queue_size 128
 ```
 
-<div id="Evaluation">
+`--start_valid_epoch 1000` keeps validation to retrieval metrics, as in the paper's
+pre-training runs. Without it the config default (95) switches on generation-based
+validation at epoch 95, which needs a SciBERT checkpoint under
+`data/pretrained/SciBERT` and fails late in the run if it is absent.
 
-### Evaluation
+`--ckalosswt` is λ in `L_total = L_base + λ·L_SAGA`, and `--mfp_queue_size` sets the
+fingerprint queue. The loss is computed over the queued samples together with the
+current mini-batch of each device (128 + 4 = 132 molecules above), and the batch is
+added to the queue afterwards. Both options default to other values in `main.py`; pass
+them explicitly to reproduce the paper.
 
-To evaluate model, run:
+Finetune for ChEBI-20 captioning, warm-starting from the distill checkpoint. The paper's
+captioning runs used λ = 1000 for both pre-training and fine-tuning:
 
-```eval
-python eval.py --resume_from_checkpoint mymodel.ckpt 
-
+```bash
+python main.py --config _yamls/Finetune_ChEBI20.yaml \
+    --init_from_checkpoint <pubchemstm_distill_ckpt> \
+    --include_mfp --fp_type morgan --ckalosswt 1000 --mfp_queue_size 128
 ```
 
+Pre-tokenize datasets first to avoid CPU bottlenecks: see `scripts/cache_tokenized_dataset.py` and pass `--token_cache_dir`.
 
-<div id="Citation">
+## Evaluation
 
-## :pushpin: Citation
+Retrieval on the ChEBI-20 test split. Pass the model options the checkpoint was trained
+with:
 
-If you find our work useful in your research or if you use parts of this code please consider citing our paper:
-
+```bash
+python eval.py --resume_from_checkpoint <model.ckpt> --model_size base --task gentext \
+    --include_mfp --mfp_queue_size 128 --retrieval_only
 ```
-@article{zhang2024atomas,
-  title={Atomas: Hierarchical alignment on molecule-text for unified molecule understanding and generation},
-  author={Zhang, Yikun and Ye, Geyan and Yuan, Chaohao and Han, Bo and Huang, Long-Kai and Yao, Jianhua and Liu, Wei and Rong, Yu},
-  journal={arXiv preprint arXiv:2404.16880},
-  year={2024}
+
+## Citation
+
+Please cite the SAGA paper (see the [repository root](../README.md#citation)) and the original Atomas paper:
+
+```bibtex
+@inproceedings{zhang2025atomas,
+  title     = {Atomas: Hierarchical Adaptive Alignment on Molecule-Text for Unified Molecule Understanding and Generation},
+  author    = {Zhang, Yikun and Ye, Geyan and Yuan, Chaohao and Han, Bo and Huang, Long-Kai and Yao, Jianhua and Liu, Wei and Rong, Yu},
+  booktitle = {ICLR},
+  year      = {2025}
 }
 ```
-
-<div id="Contact">
-
-<!-- CONTACT -->
-## :phone: Contact
-
-Yikun Zhang - yikun.zhang@stu.pku.edu.cn
-
-

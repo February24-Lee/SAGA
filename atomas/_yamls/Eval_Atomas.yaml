@@ -22,4 +22,4 @@ decay: 0
 
 # train
 precision: "bf16"
-resume_from_checkpoint: "./pretrain_model_path""
+resume_from_checkpoint: ""

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atomas"
+version = "0.1.0"
+description = "SAGA extensions to Atomas: structure-aware molecule-text representation learning via CKA regularization."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=4.0.0",
+    "levenshtein>=0.27.1",
+    "lightning>=2.5.1.post0",
+    "nltk>=3.9.1",
+    "pandas>=2.3.2",
+    "rdkit>=2025.3.5",
+    "rouge-score>=0.1.2",
+    "scikit-learn>=1.7.1",
+    "sentencepiece>=0.2.0",
+    "torch>=2.7.0",
+    "transformers>=4.51.3",
+    "wandb>=0.21.3",
+]
+
+[tool.setuptools.packages.find]
+include = ["atomas*", "dataset*", "models*", "utils*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.py"]
+
+[tool.ruff.lint]
+select = ["I001"]

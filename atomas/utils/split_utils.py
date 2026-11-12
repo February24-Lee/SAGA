@@ -1,26 +1,28 @@
 import logging
+
 logger = logging.getLogger(__name__)
 
-import math
+
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem.Scaffolds.MurckoScaffold import MurckoScaffoldSmiles
-import json
-import collections
 
 from utils.cluster import cluster_with_sim_matrix, merge_cluster
 from utils.prot_utils import get_normalized_ctd
+
 
 def random_split(n, r_val, r_test):
     r_train = 1 - r_val - r_test
     perm = np.random.permutation(n)
     train_cutoff = r_train * n
     val_cutoff = (r_train + r_val) * n
-    return perm[:train_cutoff], perm[train_cutoff : val_cutoff], perm[val_cutoff:]
+    return perm[:train_cutoff], perm[train_cutoff:val_cutoff], perm[val_cutoff:]
+
 
 def kfold_split(n, k):
     perm = np.random.permutation(n)
-    return [perm[i * n // k: (i + 1) * n // k] for i in range(k)]
+    return [perm[i * n // k : (i + 1) * n // k] for i in range(k)]
+
 
 def _generate_scaffold(smiles, include_chirality=False, is_standard=False):
     if is_standard:
@@ -29,6 +31,7 @@ def _generate_scaffold(smiles, include_chirality=False, is_standard=False):
         mol = Chem.MolFromSmiles(smiles)
         scaffold = MurckoScaffoldSmiles(mol=mol, includeChirality=include_chirality)
     return scaffold
+
 
 def generate_scaffolds(dataset, log_every_n=1000, sort=True, is_standard=False):
     scaffolds = {}
@@ -48,25 +51,16 @@ def generate_scaffolds(dataset, log_every_n=1000, sort=True, is_standard=False):
         # Sort from largest to smallest scaffold sets
         scaffolds = {key: sorted(value) for key, value in scaffolds.items()}
         scaffold_sets = [
-            scaffold_set for (scaffold, scaffold_set) in sorted(
-                scaffolds.items(), 
-                key=lambda x: (len(x[1]), x[1][0]), 
-                reverse=True
+            scaffold_set
+            for (scaffold, scaffold_set) in sorted(
+                scaffolds.items(), key=lambda x: (len(x[1]), x[1][0]), reverse=True
             )
         ]
     else:
         scaffold_sets = [value for key, value in scaffolds.items()]
-   
-    # TODO: DEBUG
-    """
-    scaffold_index = collections.OrderedDict()
-    for i, value in enumerate(scaffold_sets):
-        scaffold_index[i] = str(value)
-    scaffold_index = json.dumps(scaffold_index)
-    with open("scaffold_set_2.json","w") as f:
-        f.write(scaffold_index)
-    """
+
     return scaffold_sets
+
 
 def scaffold_split(dataset, r_val, r_test, log_every_n=1000, is_standard=False):
     r_train = 1.0 - r_val - r_test
@@ -89,6 +83,7 @@ def scaffold_split(dataset, r_val, r_test, log_every_n=1000, is_standard=False):
             train_inds += scaffold_set
     return train_inds, valid_inds, test_inds
 
+
 def cold_drug_split(dataset, nfolds):
     scaffold_sets = generate_scaffolds(dataset, -1, sort=False)
     n_cutoff = len(dataset.pair_index) // nfolds
@@ -105,8 +100,13 @@ def cold_drug_split(dataset, nfolds):
         pair_in_scaffold_set = []
         for i_drug in scaffold_set:
             pair_in_scaffold_set += drug_pair_index[i_drug]
-        if cur != nfolds - 1 and len(folds[cur]) + len(pair_in_scaffold_set) >= n_cutoff:
-            if len(folds[cur]) + len(pair_in_scaffold_set) - n_cutoff > n_cutoff - len(folds[cur]):
+        if (
+            cur != nfolds - 1
+            and len(folds[cur]) + len(pair_in_scaffold_set) >= n_cutoff
+        ):
+            if len(folds[cur]) + len(pair_in_scaffold_set) - n_cutoff > n_cutoff - len(
+                folds[cur]
+            ):
                 cur += 1
                 folds[cur] += pair_in_scaffold_set
             else:
@@ -115,6 +115,7 @@ def cold_drug_split(dataset, nfolds):
         else:
             folds[cur] += pair_in_scaffold_set
     return folds
+
 
 def cold_protein_split(dataset, nfolds):
     ctds = get_normalized_ctd(dataset.proteins)
@@ -137,7 +138,9 @@ def cold_protein_split(dataset, nfolds):
             if i_protein in prot_pair_index:
                 pair_in_cluster += prot_pair_index[i_protein]
         if cur != nfolds - 1 and len(folds[cur]) + len(pair_in_cluster) >= n_cutoff:
-            if len(folds[cur]) + len(pair_in_cluster) - n_cutoff > n_cutoff - len(folds[cur]):
+            if len(folds[cur]) + len(pair_in_cluster) - n_cutoff > n_cutoff - len(
+                folds[cur]
+            ):
                 cur += 1
                 folds[cur] += pair_in_cluster
             else:
@@ -146,6 +149,7 @@ def cold_protein_split(dataset, nfolds):
         else:
             folds[cur] += pair_in_cluster
     return folds
+
 
 def cold_cluster_split(dataset, ngrids):
     drug_clusters = generate_scaffolds(dataset, -1)
@@ -164,7 +168,7 @@ def cold_cluster_split(dataset, ngrids):
             for k, (i_drug, i_prot) in enumerate(dataset.pair_index):
                 if i_drug in drug_clusters[i] and i_prot in prot_clusters[j]:
                     pair_in_grid[i][j].append(k)
-    
+
     folds = []
     for i in range(ngrids):
         for j in range(ngrids):
