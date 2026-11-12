@@ -1,3 +1,4 @@
 *
 !.gitignore
-!dataset.zip
+!PubchemSTM_distill/
+!PubchemSTM_distill/**

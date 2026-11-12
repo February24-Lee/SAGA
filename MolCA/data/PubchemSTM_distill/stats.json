@@ -1,0 +1,9 @@
+{
+  "total_raw_pairs": 408250,
+  "unique_pairs_after_cid_merge": 219645,
+  "pairs_after_length_filter": 45496,
+  "chebi20_smiles_count": 32539,
+  "pcdes_smiles_count": 14979,
+  "duplicates_removed": 11131,
+  "final_pairs": 34365
+}
