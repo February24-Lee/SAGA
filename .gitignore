@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Environments / tooling
+.venv/
+.env
+.ruff_cache/
+
+# Experiment artifacts
+**/all_checkpoints/
+**/outputs/
+**/logs/
+**/wandb/
+*.log
+
+# OS
+.DS_Store
