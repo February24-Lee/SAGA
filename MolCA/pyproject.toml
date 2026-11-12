@@ -1,0 +1,31 @@
+[project]
+name = "molca"
+version = "0.1.0"
+description = "SAGA extensions to MolCA: structure-aware molecule-text representation learning via CKA regularization."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=4.3.0",
+    "lightning>=2.5.5",
+    "moviepy==1.0.3",
+    "numpy<2.0.0",
+    "ogb==1.3.6",
+    "rdkit>=2025.3.6",
+    "rouge-score>=0.1.2",
+    "salesforce-lavis",
+    "torch==2.8.0",
+    "torch-geometric>=2.6.1",
+    "torchaudio==2.8.0",
+    "torchvision==0.23.0",
+    "transformers==4.45.2",
+    "wandb>=0.21.4",
+]
+
+# MolCA imports the vendored LAVIS (BLIP-2 building blocks) from ./LAVIS.
+# Installing it editable also pulls LAVIS's runtime dependencies (timm, decord,
+# omegaconf, transformers, ...) so a plain `uv sync` reproduces the environment.
+[tool.uv.sources]
+salesforce-lavis = { path = "LAVIS", editable = true }
+
+[tool.ruff.lint]
+select = ["I001"]
